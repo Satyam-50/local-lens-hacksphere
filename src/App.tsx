@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 
+/* ================= TYPES ================= */
+
 type Post = {
   title: string;
   description: string;
@@ -10,7 +12,7 @@ type Post = {
   comments: string[];
 };
 
-/* ================= AUTH PAGES ================= */
+/* ================= LOGIN ================= */
 
 function Login() {
   const navigate = useNavigate();
@@ -28,7 +30,9 @@ function Login() {
           Sign in
         </button>
 
-        <div className="auth-divider"><span>OR</span></div>
+        <div className="auth-divider">
+          <span>OR</span>
+        </div>
 
         <button className="oauth google">Continue with Google</button>
         <button className="oauth github">Continue with GitHub</button>
@@ -40,6 +44,8 @@ function Login() {
     </div>
   );
 }
+
+/* ================= SIGNUP ================= */
 
 function Signup() {
   const navigate = useNavigate();
@@ -58,7 +64,9 @@ function Signup() {
           Register
         </button>
 
-        <div className="auth-divider"><span>OR</span></div>
+        <div className="auth-divider">
+          <span>OR</span>
+        </div>
 
         <button className="oauth google">Sign up with Google</button>
         <button className="oauth github">Sign up with GitHub</button>
@@ -71,7 +79,7 @@ function Signup() {
   );
 }
 
-/* ================= HOME PAGE ================= */
+/* ================= HOME ================= */
 
 function Home() {
   const navigate = useNavigate();
@@ -82,6 +90,7 @@ function Home() {
   const [desc, setDesc] = useState("");
   const [commentInputs, setCommentInputs] = useState<string[]>([]);
 
+  /* LOAD / SAVE */
   useEffect(() => {
     const saved = localStorage.getItem("posts");
     if (saved) {
@@ -95,6 +104,7 @@ function Home() {
     localStorage.setItem("posts", JSON.stringify(posts));
   }, [posts]);
 
+  /* ACTIONS */
   const addPost = () => {
     if (!title.trim() || !desc.trim()) return;
 
@@ -134,6 +144,7 @@ function Home() {
 
   return (
     <div className="app">
+      {/* TOP BAR */}
       <div className="topbar">
         <div className="left">
           <span onClick={() => setMenuOpen(true)}>☰</span>
@@ -148,13 +159,94 @@ function Home() {
         </div>
       </div>
 
-      {/* rest of your home UI stays SAME */}
-      {/* I did not touch post logic or UI */}
+      {/* NAV */}
+      <nav className="nav">
+        <span>Home</span>
+        <span>News</span>
+        <span>Culture</span>
+        <span>Business</span>
+        <span>Music</span>
+        <span>Live</span>
+      </nav>
+
+      {/* SIDEBAR */}
+      {menuOpen && (
+        <div className="sidebar">
+          <span className="close" onClick={() => setMenuOpen(false)}>✖</span>
+          <input placeholder="Search local news..." />
+          <ul>
+            <li>Home</li>
+            <li>Breaking News</li>
+            <li>Business</li>
+            <li>Culture</li>
+            <li>Sports</li>
+            <li>Technology</li>
+            <li>Live</li>
+          </ul>
+        </div>
+      )}
+
+      {/* MAIN */}
+      <main className="container">
+        <section className="card">
+          <h2>📰 Share local news</h2>
+          <input
+            placeholder="Headline"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <textarea
+            placeholder="Describe what’s happening in your area..."
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+          <button onClick={addPost}>Publish</button>
+        </section>
+
+        <h2 className="section">Latest updates</h2>
+
+        {posts.length === 0 && <p>No news yet. Be the first to post!</p>}
+
+        {posts.map((post, index) => (
+          <div className="post" key={index}>
+            <h3>🗞️ {post.title}</h3>
+            <p>{post.description}</p>
+            <small>{post.time}</small>
+
+            <div className="actions">
+              <button onClick={() => likePost(index)}>👍 {post.likes}</button>
+              <button>🔁 Repost</button>
+              <button>📤 Share</button>
+            </div>
+
+            <div className="comments">
+              <input
+                placeholder="Write a comment..."
+                value={commentInputs[index] || ""}
+                onChange={(e) => {
+                  const copy = [...commentInputs];
+                  copy[index] = e.target.value;
+                  setCommentInputs(copy);
+                }}
+              />
+              <button onClick={() => addComment(index)}>Send</button>
+
+              {post.comments.map((c, i) => (
+                <div key={i} className="comment">💬 {c}</div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </main>
+
+      <footer>
+        <p>© 2025 LocalLens · Hyperlocal Citizen Journalism</p>
+      </footer>
     </div>
   );
 }
 
-/* ================= ROUTER ================= */
+/* ================= ROUTES ================= */
 
 export default function App() {
   return (
