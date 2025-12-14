@@ -16,12 +16,18 @@ export default function App() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
-  const [comment, setComment] = useState("");
+
+  // 👇 per-post comment input fix
+  const [commentInputs, setCommentInputs] = useState<string[]>([]);
 
   /* LOAD / SAVE */
   useEffect(() => {
     const saved = localStorage.getItem("posts");
-    if (saved) setPosts(JSON.parse(saved));
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setPosts(parsed);
+      setCommentInputs(new Array(parsed.length).fill(""));
+    }
   }, []);
 
   useEffect(() => {
@@ -30,65 +36,114 @@ export default function App() {
 
   /* ACTIONS */
   const addPost = () => {
-    if (!title || !desc) return;
-    setPosts([
-      {
-        title,
-        description: desc,
-        time: new Date().toLocaleString(),
-        likes: 0,
-        comments: [],
-      },
-      ...posts,
-    ]);
+    if (!title.trim() || !desc.trim()) return;
+
+    const newPost: Post = {
+      title,
+      description: desc,
+      time: new Date().toLocaleString(),
+      likes: 0,
+      comments: [],
+    };
+
+    setPosts([newPost, ...posts]);
+    setCommentInputs(["", ...commentInputs]);
     setTitle("");
     setDesc("");
   };
 
-  const likePost = (i: number) => {
+  const likePost = (index: number) => {
     const copy = [...posts];
-    copy[i].likes++;
+    copy[index].likes += 1;
     setPosts(copy);
   };
 
-  const addComment = (i: number) => {
-    if (!comment) return;
+  const addComment = (index: number) => {
+    const text = commentInputs[index];
+    if (!text.trim()) return;
+
     const copy = [...posts];
-    copy[i].comments.push(comment);
+    copy[index].comments.push(text);
+
+    const newInputs = [...commentInputs];
+    newInputs[index] = "";
+
     setPosts(copy);
-    setComment("");
+    setCommentInputs(newInputs);
   };
 
-  /* ================= AUTH PAGES ================= */
+  /* ================= AUTH ================= */
 
-  if (page === "login") {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h2>Sign in</h2>
-          <input placeholder="Email" />
-          <input type="password" placeholder="Password" />
-          <button onClick={() => setPage("home")}>Sign in</button>
-          <p onClick={() => setPage("signup")}>Create account</p>
+ if (page === "login") {
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Welcome back</h2>
+        <p className="auth-sub">Sign in to LocalLens</p>
+
+        <input type="email" placeholder="Email address" />
+        <input type="password" placeholder="Password" />
+
+        <button className="auth-btn" onClick={() => setPage("home")}>
+          Sign in
+        </button>
+
+        <div className="auth-divider">
+          <span>OR</span>
         </div>
+
+        {/* API / OAuth Ready Buttons */}
+        <button className="oauth google">
+          Continue with Google
+        </button>
+        <button className="oauth github">
+          Continue with GitHub
+        </button>
+
+        <p className="auth-link" onClick={() => setPage("signup")}>
+          Create a new account →
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
 
   if (page === "signup") {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h2>Register</h2>
-          <input placeholder="Name" />
-          <input placeholder="Email" />
-          <input type="password" placeholder="Password" />
-          <button onClick={() => setPage("home")}>Register</button>
-          <p onClick={() => setPage("login")}>Already have an account</p>
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Create your account</h2>
+        <p className="auth-sub">Join hyperlocal journalism</p>
+
+        <input placeholder="Full name" />
+        <input type="email" placeholder="Email address" />
+        <input type="password" placeholder="Password" />
+
+        <button className="auth-btn" onClick={() => setPage("home")}>
+          Register
+        </button>
+
+        <div className="auth-divider">
+          <span>OR</span>
         </div>
+
+        {/* API / OAuth Ready Buttons */}
+        <button className="oauth google">
+          Sign up with Google
+        </button>
+        <button className="oauth github">
+          Sign up with GitHub
+        </button>
+
+        <p className="auth-link" onClick={() => setPage("login")}>
+          Already have an account →
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
 
   /* ================= HOME ================= */
 
@@ -100,7 +155,9 @@ export default function App() {
           <span onClick={() => setMenuOpen(true)}>☰</span>
           <span>🔍</span>
         </div>
+
         <div className="logo">LocalLens</div>
+
         <div className="right">
           <button onClick={() => setPage("signup")}>Register</button>
           <button onClick={() => setPage("login")}>Sign in</button>
@@ -121,10 +178,10 @@ export default function App() {
       {menuOpen && (
         <div className="sidebar">
           <span className="close" onClick={() => setMenuOpen(false)}>✖</span>
-          <input placeholder="Search news..." />
+          <input placeholder="Search local news..." />
           <ul>
             <li>Home</li>
-            <li>News</li>
+            <li>Breaking News</li>
             <li>Business</li>
             <li>Culture</li>
             <li>Sports</li>
@@ -136,15 +193,16 @@ export default function App() {
 
       {/* MAIN */}
       <main className="container">
+        {/* CREATE POST */}
         <section className="card">
-          <h2>Share local news</h2>
+          <h2>📰 Share local news</h2>
           <input
             placeholder="Headline"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <textarea
-            placeholder="What's happening?"
+            placeholder="Describe what’s happening in your area..."
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
           />
@@ -153,14 +211,17 @@ export default function App() {
 
         <h2 className="section">Latest updates</h2>
 
-        {posts.map((p, i) => (
-          <div className="post" key={i}>
-            <h3>{p.title}</h3>
-            <p>{p.description}</p>
-            <small>{p.time}</small>
+        {/* FEED */}
+        {posts.length === 0 && <p>No news yet. Be the first to post!</p>}
+
+        {posts.map((post, index) => (
+          <div className="post" key={index}>
+            <h3>🗞️ {post.title}</h3>
+            <p>{post.description}</p>
+            <small>{post.time}</small>
 
             <div className="actions">
-              <button onClick={() => likePost(i)}>👍 {p.likes}</button>
+              <button onClick={() => likePost(index)}>👍 {post.likes}</button>
               <button>🔁 Repost</button>
               <button>📤 Share</button>
             </div>
@@ -168,13 +229,17 @@ export default function App() {
             <div className="comments">
               <input
                 placeholder="Write a comment..."
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
+                value={commentInputs[index] || ""}
+                onChange={(e) => {
+                  const copy = [...commentInputs];
+                  copy[index] = e.target.value;
+                  setCommentInputs(copy);
+                }}
               />
-              <button onClick={() => addComment(i)}>Send</button>
+              <button onClick={() => addComment(index)}>Send</button>
 
-              {p.comments.map((c, idx) => (
-                <div key={idx} className="comment">💬 {c}</div>
+              {post.comments.map((c, i) => (
+                <div key={i} className="comment">💬 {c}</div>
               ))}
             </div>
           </div>
@@ -183,13 +248,7 @@ export default function App() {
 
       {/* FOOTER */}
       <footer>
-        <div>
-          <span>Terms</span>
-          <span>Privacy</span>
-          <span>Cookies</span>
-          <span>Text only</span>
-        </div>
-        <p>© 2025 LocalLens</p>
+        <p>© 2025 LocalLens · Hyperlocal Citizen Journalism</p>
       </footer>
     </div>
   );
