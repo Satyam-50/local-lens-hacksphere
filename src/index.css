@@ -12,4 +12,18 @@ body {
   background-color: #f1f5f9;
   color: #0f172a;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root {
+  --max-width: 960px;
+  --muted: #64748b;
+  --brand: #2563eb;
+}
+
+html { font-size: 16px; }
+
+@media (max-width: 720px) {
+  html { font-size: 15px; }
 }
