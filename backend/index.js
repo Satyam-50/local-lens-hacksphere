@@ -1,7 +1,10 @@
+import Post from "./models/Post.js";
+import { authMiddleware } from "./middleware/auth.js";
 import jwt from "jsonwebtoken";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+
 
 dotenv.config();
 const app = express();
@@ -99,6 +102,74 @@ app.post("/login", async (req, res) => {
   } catch (err) {
     console.error("❌ LOGIN ERROR:", err);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/posts", authMiddleware, async (req, res) => {
+  try {
+    const { title, description, category } = req.body;
+
+    if (!title || !description || !category) {
+      return res.status(400).json({ error: "All fields required" });
+    }
+
+    const post = await Post.create({
+      title,
+      description,
+      category,
+      author: req.userId,
+    });
+
+    res.status(201).json(post);
+  } catch (err) {
+    console.error("CREATE POST ERROR:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.get("/posts", async (req, res) => {
+  try {
+    const posts = await Post.find()
+      .populate("author", "fullName")
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (err) {
+    console.error("FETCH POSTS ERROR:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.post("/posts/:id/like", authMiddleware, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    if (!req.userId) {
+      return res.status(401).json({ error: "No userId in request" });
+    }
+
+    const userId = req.userId.toString();
+
+    const alreadyLiked = post.likes.some(
+      (id) => id.toString() === userId
+    );
+
+    if (!alreadyLiked) {
+      post.likes.push(userId);
+    }
+
+    await post.save();
+
+    console.log("✅ LIKES SAVED:", post.likes);
+
+    res.json({ likes: post.likes.length });
+  } catch (err) {
+    console.error("❌ LIKE ERROR:", err);
+    res.status(500).json({ error: "Like failed" });
   }
 });
 

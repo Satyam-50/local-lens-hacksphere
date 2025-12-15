@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import Login from "./login";
@@ -116,14 +116,32 @@ function Signup() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <button className="auth-back" onClick={() => navigate("/")}>← Back</button>
+        <button className="auth-back" onClick={() => navigate("/")}>
+          ← Back
+        </button>
         <h2>Create your account</h2>
 
-        <input placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <input
+          placeholder="Full name"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
-        <button className="auth-btn" onClick={handleSignup}>Register</button>
+        <button className="auth-btn" onClick={handleSignup}>
+          Register
+        </button>
       </div>
     </div>
   );
@@ -132,10 +150,25 @@ function Signup() {
 /* ================= HOME ================= */
 
 function Home() {
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/posts");
+        const data = await res.json();
+        setPosts(data);
+        setCommentInputs(new Array(data.length).fill(""));
+      } catch (err) {
+        console.error("Failed to load posts", err);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
   const navigate = useNavigate();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [posts, setPosts] = useState<Post[]>(DUMMY_POSTS);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [commentInputs, setCommentInputs] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -149,27 +182,44 @@ function Home() {
       ? posts
       : posts.filter((p) => p.category === activeCategory);
 
-  const addPost = useCallback(() => {
+  const addPost = async () => {
     if (!isLoggedIn) {
       alert("Login required to post");
       return;
     }
+
     if (!title.trim() || !desc.trim()) return;
 
-    const newPost: Post = {
-      title,
-      description: desc,
-      time: new Date().toLocaleString(),
-      likes: 0,
-      comments: [],
-      category: "news",
-    };
+    try {
+      const res = await fetch("http://localhost:5000/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          title,
+          description: desc,
+          category: activeCategory === "all" ? "news" : activeCategory,
+        }),
+      });
 
-    setPosts((prev) => [newPost, ...prev]);
-    setCommentInputs((prev) => ["", ...prev]);
-    setTitle("");
-    setDesc("");
-  }, [title, desc, isLoggedIn]);
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to post");
+        return;
+      }
+
+      // prepend newly created post from backend
+      setPosts((prev) => [data, ...prev]);
+      setTitle("");
+      setDesc("");
+    } catch (err) {
+      console.error(err);
+      alert("Server error");
+    }
+  };
 
   const likePost = (index: number) => {
     const copy = [...posts];
@@ -208,7 +258,9 @@ function Home() {
           <button>🔍</button>
         </div>
 
-        <button className="logo" onClick={() => navigate("/")}>LocalLens</button>
+        <button className="logo" onClick={() => navigate("/")}>
+          LocalLens
+        </button>
 
         <div className="right">
           {!isLoggedIn ? (
@@ -241,7 +293,9 @@ function Home() {
       {/* SIDEBAR */}
       {menuOpen && (
         <div className="sidebar">
-          <span className="close" onClick={() => setMenuOpen(false)}>✖</span>
+          <span className="close" onClick={() => setMenuOpen(false)}>
+            ✖
+          </span>
           <ul>
             <li>Home</li>
             <li>Breaking News</li>
@@ -256,9 +310,19 @@ function Home() {
       <main className="container">
         <section className="card">
           <h2>📰 Share local news</h2>
-          <input placeholder="Headline" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea placeholder="Describe..." value={desc} onChange={(e) => setDesc(e.target.value)} />
-          <button onClick={addPost} disabled={!isLoggedIn}>Publish</button>
+          <input
+            placeholder="Headline"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <textarea
+            placeholder="Describe..."
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+          <button onClick={addPost} disabled={!isLoggedIn}>
+            Publish
+          </button>
           {!isLoggedIn && <p>Please log in to post.</p>}
         </section>
 
