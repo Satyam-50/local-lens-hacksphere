@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import Login from "./login";
@@ -54,7 +54,9 @@ function Signup() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <button className="auth-back" onClick={() => navigate("/")}>← Back</button>
+        <button className="auth-back" onClick={() => navigate("/")}>
+          ← Back
+        </button>
         <h2>Create your account</h2>
 
         <input
@@ -114,7 +116,7 @@ function Home() {
 
   /* ACTIONS */
 
-  const addPost = () => {
+  const addPost = useCallback(() => {
     if (!isLoggedIn) {
       alert("Please log in to post");
       return;
@@ -130,62 +132,77 @@ function Home() {
       attachments: attachments.length ? attachments : undefined,
     };
 
-    setPosts([newPost, ...posts]);
-    setCommentInputs(["", ...commentInputs]);
+    setPosts((prev) => [newPost, ...prev]);
+    setCommentInputs((prev) => ["", ...prev]);
     setTitle("");
     setDesc("");
     setAttachments([]);
-  };
+  }, [title, desc, attachments, isLoggedIn]);
 
-  const handleFiles = (files: FileList | null) => {
+  const handleFiles = useCallback((files: FileList | null) => {
     if (!files) return;
 
-    Array.from(files).forEach((file) => {
+    Array.from(files).forEach((f) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const src = e.target?.result as string;
-        if (file.type.startsWith("image"))
-          setAttachments((p) => [...p, { type: "image", src }]);
-        else if (file.type.startsWith("video"))
-          setAttachments((p) => [...p, { type: "video", src }]);
+      reader.onload = (ev) => {
+        const src = ev.target?.result as string;
+        const item: Attachment =
+          f.type.startsWith("image")
+            ? { type: "image", src }
+            : f.type.startsWith("video")
+            ? { type: "video", src }
+            : { type: "link", src };
+
+        setAttachments((prev) => [...prev, item]);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(f);
     });
-  };
+  }, []);
 
-  const addLink = () => {
-    if (!linkInput.trim()) return;
-    setAttachments((p) => [...p, { type: "link", src: linkInput }]);
+  const addLink = useCallback(() => {
+    const url = linkInput.trim();
+    if (!url) return;
+    setAttachments((prev) => [...prev, { type: "link", src: url }]);
     setLinkInput("");
+  }, [linkInput]);
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const removeAttachment = (i: number) => {
-    setAttachments((p) => p.filter((_, idx) => idx !== i));
-  };
-
-  const likePost = (i: number) => {
+  const likePost = (index: number) => {
     const copy = [...posts];
-    copy[i].likes++;
+    copy[index].likes += 1;
     setPosts(copy);
   };
 
-  const addComment = (i: number) => {
-    if (!isLoggedIn) {
-      alert("Login required to comment");
-      return;
-    }
-    const text = commentInputs[i];
-    if (!text.trim()) return;
+  const addComment = useCallback(
+    (index: number) => {
+      if (!isLoggedIn) {
+        alert("Login required to comment");
+        return;
+      }
 
-    const copy = [...posts];
-    copy[i].comments.push(text);
+      const text = commentInputs[index];
+      if (!text?.trim()) return;
 
-    const newInputs = [...commentInputs];
-    newInputs[i] = "";
+      setPosts((prev) => {
+        const copy = [...prev];
+        copy[index] = {
+          ...copy[index],
+          comments: [...copy[index].comments, text],
+        };
+        return copy;
+      });
 
-    setPosts(copy);
-    setCommentInputs(newInputs);
-  };
+      setCommentInputs((prev) => {
+        const copy = [...prev];
+        copy[index] = "";
+        return copy;
+      });
+    },
+    [commentInputs, isLoggedIn]
+  );
 
   return (
     <div className="app">
@@ -196,7 +213,9 @@ function Home() {
           <button>🔍</button>
         </div>
 
-        <button className="logo" onClick={() => navigate("/")}>LocalLens</button>
+        <button className="logo" onClick={() => navigate("/")}>
+          LocalLens
+        </button>
 
         <div className="right">
           {!isLoggedIn && (
@@ -221,7 +240,9 @@ function Home() {
       {/* SIDEBAR */}
       {menuOpen && (
         <div className="sidebar">
-          <span className="close" onClick={() => setMenuOpen(false)}>✖</span>
+          <span className="close" onClick={() => setMenuOpen(false)}>
+            ✖
+          </span>
           <input placeholder="Search local news..." />
           <ul>
             <li>Home</li>
@@ -240,13 +261,27 @@ function Home() {
         <section className="card">
           <h2>📰 Share local news</h2>
 
-          <input placeholder="Headline" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea placeholder="Describe what’s happening..." value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <input
+            placeholder="Headline"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <textarea
+            placeholder="Describe what’s happening..."
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
 
           <div className="attachments-row">
             <label className="file-btn">
               Add media
-              <input type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                hidden
+                onChange={(e) => handleFiles(e.currentTarget.files)}
+              />
             </label>
 
             <input
@@ -278,30 +313,34 @@ function Home() {
 
         <h2 className="section">Latest updates</h2>
 
-        {posts.map((post, i) => (
-          <div className="post" key={i}>
+        {posts.map((post, index) => (
+          <div className="post" key={index}>
             <h3>{post.title}</h3>
             <p>{post.description}</p>
             <small>{post.time}</small>
 
             <div className="actions">
-              <button onClick={() => likePost(i)}>👍 {post.likes}</button>
+              <button onClick={() => likePost(index)}>
+                👍 {post.likes}
+              </button>
             </div>
 
             <div className="comments">
               <input
                 placeholder="Write a comment..."
-                value={commentInputs[i] || ""}
-                onChange={(e) => {
-                  const c = [...commentInputs];
-                  c[i] = e.target.value;
-                  setCommentInputs(c);
-                }}
+                value={commentInputs[index] || ""}
+                onChange={(e) =>
+                  setCommentInputs((prev) => {
+                    const copy = [...prev];
+                    copy[index] = e.target.value;
+                    return copy;
+                  })
+                }
               />
-              <button onClick={() => addComment(i)}>Send</button>
+              <button onClick={() => addComment(index)}>Send</button>
 
-              {post.comments.map((c, j) => (
-                <div key={j}>💬 {c}</div>
+              {post.comments.map((c, i) => (
+                <div key={i}>💬 {c}</div>
               ))}
             </div>
           </div>
