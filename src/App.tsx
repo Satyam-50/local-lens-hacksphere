@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
-import Login from "./login.tsx";
+import Login from "./login";
 
 /* ================= TYPES ================= */
+
+type Attachment = {
+  type: "image" | "video" | "link";
+  src: string;
+};
 
 type Post = {
   title: string;
@@ -11,6 +16,7 @@ type Post = {
   time: string;
   likes: number;
   comments: string[];
+  attachments?: Attachment[];
 };
 
 /* ================= SIGNUP ================= */
@@ -30,30 +36,14 @@ function Signup() {
 
     const res = await fetch("http://localhost:5000/signup", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fullName,
-        email,
-        password,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName, email, password }),
     });
 
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      data = null;
-    }
+    const data = await res.json().catch(() => null);
 
     if (!res.ok) {
       alert(data?.error || "Signup failed");
-      return;
-    }
-
-    if (!res.ok) {
-      alert(data.error || "Signup failed");
       return;
     }
 
@@ -64,6 +54,7 @@ function Signup() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <button className="auth-back" onClick={() => navigate("/")}>← Back</button>
         <h2>Create your account</h2>
 
         <input
@@ -71,14 +62,12 @@ function Signup() {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
         />
-
         <input
           type="email"
           placeholder="Email address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-
         <input
           type="password"
           placeholder="Password"
@@ -98,12 +87,16 @@ function Signup() {
 
 function Home() {
   const navigate = useNavigate();
-
   const [menuOpen, setMenuOpen] = useState(false);
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [linkInput, setLinkInput] = useState("");
   const [commentInputs, setCommentInputs] = useState<string[]>([]);
+
+  const isLoggedIn = !!localStorage.getItem("token");
 
   /* LOAD / SAVE */
   useEffect(() => {
@@ -120,7 +113,12 @@ function Home() {
   }, [posts]);
 
   /* ACTIONS */
+
   const addPost = () => {
+    if (!isLoggedIn) {
+      alert("Please log in to post");
+      return;
+    }
     if (!title.trim() || !desc.trim()) return;
 
     const newPost: Post = {
@@ -129,29 +127,61 @@ function Home() {
       time: new Date().toLocaleString(),
       likes: 0,
       comments: [],
+      attachments: attachments.length ? attachments : undefined,
     };
 
     setPosts([newPost, ...posts]);
     setCommentInputs(["", ...commentInputs]);
     setTitle("");
     setDesc("");
+    setAttachments([]);
   };
 
-  const likePost = (index: number) => {
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const src = e.target?.result as string;
+        if (file.type.startsWith("image"))
+          setAttachments((p) => [...p, { type: "image", src }]);
+        else if (file.type.startsWith("video"))
+          setAttachments((p) => [...p, { type: "video", src }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const addLink = () => {
+    if (!linkInput.trim()) return;
+    setAttachments((p) => [...p, { type: "link", src: linkInput }]);
+    setLinkInput("");
+  };
+
+  const removeAttachment = (i: number) => {
+    setAttachments((p) => p.filter((_, idx) => idx !== i));
+  };
+
+  const likePost = (i: number) => {
     const copy = [...posts];
-    copy[index].likes += 1;
+    copy[i].likes++;
     setPosts(copy);
   };
 
-  const addComment = (index: number) => {
-    const text = commentInputs[index];
+  const addComment = (i: number) => {
+    if (!isLoggedIn) {
+      alert("Login required to comment");
+      return;
+    }
+    const text = commentInputs[i];
     if (!text.trim()) return;
 
     const copy = [...posts];
-    copy[index].comments.push(text);
+    copy[i].comments.push(text);
 
     const newInputs = [...commentInputs];
-    newInputs[index] = "";
+    newInputs[i] = "";
 
     setPosts(copy);
     setCommentInputs(newInputs);
@@ -160,19 +190,23 @@ function Home() {
   return (
     <div className="app">
       {/* TOP BAR */}
-      <div className="topbar">
+      <header className="topbar">
         <div className="left">
-          <span onClick={() => setMenuOpen(true)}>☰</span>
-          <span>🔍</span>
+          <button onClick={() => setMenuOpen(true)}>☰</button>
+          <button>🔍</button>
         </div>
 
-        <div className="logo">LocalLens</div>
+        <button className="logo" onClick={() => navigate("/")}>LocalLens</button>
 
         <div className="right">
-          <button onClick={() => navigate("/signup")}>Register</button>
-          <button onClick={() => navigate("/login")}>Sign in</button>
+          {!isLoggedIn && (
+            <>
+              <button onClick={() => navigate("/signup")}>Register</button>
+              <button onClick={() => navigate("/login")}>Sign in</button>
+            </>
+          )}
         </div>
-      </div>
+      </header>
 
       {/* NAV */}
       <nav className="nav">
@@ -181,15 +215,13 @@ function Home() {
         <span>Culture</span>
         <span>Business</span>
         <span>Music</span>
-        <span>Live</span>
+        <span className="live">Live</span>
       </nav>
 
       {/* SIDEBAR */}
       {menuOpen && (
         <div className="sidebar">
-          <span className="close" onClick={() => setMenuOpen(false)}>
-            ✖
-          </span>
+          <span className="close" onClick={() => setMenuOpen(false)}>✖</span>
           <input placeholder="Search local news..." />
           <ul>
             <li>Home</li>
@@ -207,51 +239,69 @@ function Home() {
       <main className="container">
         <section className="card">
           <h2>📰 Share local news</h2>
-          <input
-            placeholder="Headline"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <textarea
-            placeholder="Describe what’s happening in your area..."
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-          />
-          <button onClick={addPost}>Publish</button>
+
+          <input placeholder="Headline" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <textarea placeholder="Describe what’s happening..." value={desc} onChange={(e) => setDesc(e.target.value)} />
+
+          <div className="attachments-row">
+            <label className="file-btn">
+              Add media
+              <input type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
+            </label>
+
+            <input
+              placeholder="Paste link"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+            />
+            <button onClick={addLink}>Add</button>
+          </div>
+
+          {attachments.length > 0 && (
+            <div className="attachment-preview">
+              {attachments.map((a, i) => (
+                <div key={i}>
+                  {a.type === "image" && <img src={a.src} />}
+                  {a.type === "video" && <video src={a.src} controls />}
+                  {a.type === "link" && <a href={a.src}>{a.src}</a>}
+                  <button onClick={() => removeAttachment(i)}>✖</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={addPost} disabled={!isLoggedIn}>
+            Publish
+          </button>
+          {!isLoggedIn && <p>Please log in to post.</p>}
         </section>
 
         <h2 className="section">Latest updates</h2>
 
-        {posts.length === 0 && <p>No news yet. Be the first to post!</p>}
-
-        {posts.map((post, index) => (
-          <div className="post" key={index}>
-            <h3>🗞️ {post.title}</h3>
+        {posts.map((post, i) => (
+          <div className="post" key={i}>
+            <h3>{post.title}</h3>
             <p>{post.description}</p>
             <small>{post.time}</small>
 
             <div className="actions">
-              <button onClick={() => likePost(index)}>👍 {post.likes}</button>
-              <button>🔁 Repost</button>
-              <button>📤 Share</button>
+              <button onClick={() => likePost(i)}>👍 {post.likes}</button>
             </div>
 
             <div className="comments">
               <input
                 placeholder="Write a comment..."
-                value={commentInputs[index] || ""}
+                value={commentInputs[i] || ""}
                 onChange={(e) => {
-                  const copy = [...commentInputs];
-                  copy[index] = e.target.value;
-                  setCommentInputs(copy);
+                  const c = [...commentInputs];
+                  c[i] = e.target.value;
+                  setCommentInputs(c);
                 }}
               />
-              <button onClick={() => addComment(index)}>Send</button>
+              <button onClick={() => addComment(i)}>Send</button>
 
-              {post.comments.map((c, i) => (
-                <div key={i} className="comment">
-                  💬 {c}
-                </div>
+              {post.comments.map((c, j) => (
+                <div key={j}>💬 {c}</div>
               ))}
             </div>
           </div>
@@ -259,7 +309,7 @@ function Home() {
       </main>
 
       <footer>
-        <p>© 2025 LocalLens · Hyperlocal Citizen Journalism</p>
+        <small>© 2025 LocalLens · Hyperlocal Citizen Journalism</small>
       </footer>
     </div>
   );
