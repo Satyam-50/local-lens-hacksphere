@@ -26,7 +26,7 @@ function Login() {
       }
 
       localStorage.setItem("token", data.token);
-      navigate("/");
+      navigate("/home"); // ✅ Changed from "/" to "/home"
     } catch (err) {
       alert("Something went wrong");
     } finally {
@@ -37,6 +37,9 @@ function Login() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <button className="auth-back" onClick={() => navigate("/")}>
+          ← Back
+        </button>
         <h2>Welcome back</h2>
 
         <input
@@ -53,9 +56,13 @@ function Login() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        <button onClick={handleLogin}>
+        <button className="auth-btn" onClick={handleLogin} disabled={loading}>
           {loading ? "Signing in..." : "Sign in"}
         </button>
+
+        <p className="auth-link" onClick={() => navigate("/signup")}>
+          Don't have an account? Sign up
+        </p>
       </div>
     </div>
   );

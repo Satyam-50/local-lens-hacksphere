@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import Login from "./login";
+import Landing from "./Landing";
 
 /* ================= TYPES ================= */
 
@@ -63,7 +64,7 @@ function Signup() {
       return;
     }
 
-    alert("Signup successful!");
+    alert("Signup successful! Please log in.");
     navigate("/login");
   };
 
@@ -174,7 +175,6 @@ function Home() {
     }
   };
 
-  // ✅ FIXED: Call backend like endpoint
   const likePost = async (postId: string) => {
     if (!isLoggedIn) {
       alert("Login required to like");
@@ -196,7 +196,6 @@ function Home() {
         return;
       }
 
-      // Update local state with new like count
       setPosts((prev) =>
         prev.map((post) =>
           post._id === postId
@@ -210,7 +209,6 @@ function Home() {
     }
   };
 
-  // ✅ FIXED: Call backend comment endpoint
   const addComment = async (postId: string) => {
     if (!isLoggedIn) {
       alert("Login required to comment");
@@ -237,14 +235,12 @@ function Home() {
         return;
       }
 
-      // Update local state with new comments
       setPosts((prev) =>
         prev.map((post) =>
           post._id === postId ? { ...post, comments: data.comments } : post
         )
       );
 
-      // Clear input
       setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
     } catch (err) {
       console.error(err);
@@ -268,7 +264,7 @@ function Home() {
         <div className="right">
           {!isLoggedIn ? (
             <>
-              <button className="ghost" onClick={() => navigate("/signup")}>Register</button>
+              <button className="ghost" onClick={() => navigate("/")}>Home</button>
               <button className="primary" onClick={() => navigate("/login")}>Sign in</button>
             </>
           ) : (
@@ -276,7 +272,7 @@ function Home() {
               className="ghost"
               onClick={() => {
                 localStorage.removeItem("token");
-                window.location.reload();
+                navigate("/"); // ✅ Goes back to landing page
               }}
             >
               Logout
@@ -391,7 +387,8 @@ function Home() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Landing />} />
+      <Route path="/home" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
     </Routes>
