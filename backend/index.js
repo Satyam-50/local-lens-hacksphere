@@ -1,4 +1,4 @@
-
+import jwt from "jsonwebtoken";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -20,6 +20,7 @@ import bcrypt from "bcrypt";
 app.use(express.json()); //body-reader
 
 import { signupSchema } from "./validators/auth.schema.js";
+import { loginSchema } from "./validators/auth.schema.js";
 
 app.post("/signup", async (req, res) => {
   try {
@@ -56,6 +57,50 @@ app.post("/signup", async (req, res) => {
   }
 });
 
+app.post("/login", async (req, res) => {
+  try {
+    console.log("🔥 /login HIT", req.body);
+
+    // 1️⃣ Validate input
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0].message,
+      });
+    }
+
+    const { email, password } = parsed.data;
+
+    // 2️⃣ Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // 3️⃣ Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // 4️⃣ Create JWT
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // 5️⃣ Send token
+    return res.json({
+      message: "Login successful",
+      token,
+    });
+
+  } catch (err) {
+    console.error("❌ LOGIN ERROR:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 
 

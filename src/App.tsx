@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
+import Login from "./login.tsx";
 
 /* ================= TYPES ================= */
 
@@ -12,68 +13,82 @@ type Post = {
   comments: string[];
 };
 
-/* ================= LOGIN ================= */
-
-function Login() {
-  const navigate = useNavigate();
-
-  return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h2>Welcome back</h2>
-        <p className="auth-sub">Sign in to LocalLens</p>
-
-        <input type="email" placeholder="Email address" />
-        <input type="password" placeholder="Password" />
-
-        <button className="auth-btn" onClick={() => navigate("/")}>
-          Sign in
-        </button>
-
-        <div className="auth-divider">
-          <span>OR</span>
-        </div>
-
-        <button className="oauth google">Continue with Google</button>
-        <button className="oauth github">Continue with GitHub</button>
-
-        <p className="auth-link" onClick={() => navigate("/signup")}>
-          Create a new account →
-        </p>
-      </div>
-    </div>
-  );
-}
-
 /* ================= SIGNUP ================= */
 
 function Signup() {
   const navigate = useNavigate();
 
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSignup = async () => {
+    if (!fullName || !email || !password) {
+      alert("All fields are required");
+      return;
+    }
+
+    const res = await fetch("http://localhost:5000/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fullName,
+        email,
+        password,
+      }),
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      alert(data?.error || "Signup failed");
+      return;
+    }
+
+    if (!res.ok) {
+      alert(data.error || "Signup failed");
+      return;
+    }
+
+    alert("Signup successful!");
+    navigate("/login");
+  };
+
   return (
     <div className="auth-page">
       <div className="auth-card">
         <h2>Create your account</h2>
-        <p className="auth-sub">Join hyperlocal journalism</p>
 
-        <input placeholder="Full name" />
-        <input type="email" placeholder="Email address" />
-        <input type="password" placeholder="Password" />
+        <input
+          placeholder="Full name"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
 
-        <button className="auth-btn" onClick={() => navigate("/")}>
+        <input
+          type="email"
+          placeholder="Email address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button className="auth-btn" onClick={handleSignup}>
           Register
         </button>
-
-        <div className="auth-divider">
-          <span>OR</span>
-        </div>
-
-        <button className="oauth google">Sign up with Google</button>
-        <button className="oauth github">Sign up with GitHub</button>
-
-        <p className="auth-link" onClick={() => navigate("/login")}>
-          Already have an account →
-        </p>
       </div>
     </div>
   );
@@ -172,7 +187,9 @@ function Home() {
       {/* SIDEBAR */}
       {menuOpen && (
         <div className="sidebar">
-          <span className="close" onClick={() => setMenuOpen(false)}>✖</span>
+          <span className="close" onClick={() => setMenuOpen(false)}>
+            ✖
+          </span>
           <input placeholder="Search local news..." />
           <ul>
             <li>Home</li>
@@ -232,7 +249,9 @@ function Home() {
               <button onClick={() => addComment(index)}>Send</button>
 
               {post.comments.map((c, i) => (
-                <div key={i} className="comment">💬 {c}</div>
+                <div key={i} className="comment">
+                  💬 {c}
+                </div>
               ))}
             </div>
           </div>
