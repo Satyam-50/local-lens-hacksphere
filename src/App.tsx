@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import Login from "./login";
@@ -12,76 +12,30 @@ type Attachment = {
   src: string;
 };
 
-type Post = {
-  title: string;
-  description: string;
-  time: string;
-  likes: number;
-  comments: string[];
-  category: Exclude<Category, "all">;
-  attachments?: Attachment[];
+type Comment = {
+  _id: string;
+  user: {
+    _id: string;
+    fullName: string;
+  };
+  text: string;
+  createdAt: string;
 };
 
-/* ================= DUMMY POSTS ================= */
-
-const DUMMY_POSTS: Post[] = [
-  {
-    title: "Local Art Fair Brings Community Together",
-    description: "Artists showcased paintings, pottery, and live sketches.",
-    time: "Today · 10:30 AM",
-    likes: 12,
-    comments: [],
-    category: "culture",
-  },
-  {
-    title: "Street Music Festival Lights Up Downtown",
-    description: "Independent bands drew hundreds of music lovers.",
-    time: "Yesterday · 7:00 PM",
-    likes: 18,
-    comments: [],
-    category: "music",
-  },
-  {
-    title: "Small Businesses See Growth This Quarter",
-    description: "Local shops report higher sales this quarter.",
-    time: "Yesterday · 2:15 PM",
-    likes: 9,
-    comments: [],
-    category: "business",
-  },
-  {
-    title: "Heritage Walk Explores Old City Stories",
-    description: "Residents rediscovered historic landmarks.",
-    time: "2 days ago",
-    likes: 14,
-    comments: [],
-    category: "culture",
-  },
-  {
-    title: "Indie Music Scene Thriving Among Youth",
-    description: "College bands perform weekly at cafés.",
-    time: "3 days ago",
-    likes: 22,
-    comments: [],
-    category: "music",
-  },
-  {
-    title: "Local Startup Raises Seed Funding",
-    description: "A homegrown startup secures early funding.",
-    time: "3 days ago",
-    likes: 30,
-    comments: [],
-    category: "business",
-  },
-  {
-    title: "City Council Discusses Traffic Reforms",
-    description: "New proposals aim to reduce congestion.",
-    time: "4 days ago",
-    likes: 6,
-    comments: [],
-    category: "news",
-  },
-];
+type Post = {
+  _id: string;
+  title: string;
+  description: string;
+  category: Exclude<Category, "all">;
+  author: {
+    _id: string;
+    fullName: string;
+  };
+  likes: string[];
+  comments: Comment[];
+  createdAt: string;
+  attachments?: Attachment[];
+};
 
 /* ================= SIGNUP ================= */
 
@@ -150,32 +104,32 @@ function Signup() {
 /* ================= HOME ================= */
 
 function Home() {
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/posts");
-        const data = await res.json();
-        setPosts(data);
-        setCommentInputs(new Array(data.length).fill(""));
-      } catch (err) {
-        console.error("Failed to load posts", err);
-      }
-    };
-
-    fetchPosts();
-  }, []);
-
   const navigate = useNavigate();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [commentInputs, setCommentInputs] = useState<string[]>([]);
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("all");
 
   const token = localStorage.getItem("token");
   const isLoggedIn = token && token !== "null" && token !== "undefined";
+
+  // Load posts on mount
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/posts");
+      const data = await res.json();
+      setPosts(data);
+    } catch (err) {
+      console.error("Failed to load posts", err);
+    }
+  };
 
   const filteredPosts =
     activeCategory === "all"
@@ -195,7 +149,7 @@ function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           title,
@@ -211,7 +165,6 @@ function Home() {
         return;
       }
 
-      // prepend newly created post from backend
       setPosts((prev) => [data, ...prev]);
       setTitle("");
       setDesc("");
@@ -221,32 +174,82 @@ function Home() {
     }
   };
 
-  const likePost = (index: number) => {
-    const copy = [...posts];
-    copy[index].likes += 1;
-    setPosts(copy);
+  // ✅ FIXED: Call backend like endpoint
+  const likePost = async (postId: string) => {
+    if (!isLoggedIn) {
+      alert("Login required to like");
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:5000/posts/${postId}/like`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Like failed");
+        return;
+      }
+
+      // Update local state with new like count
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, likes: Array(data.likes).fill("") }
+            : post
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Like failed");
+    }
   };
 
-  const addComment = (index: number) => {
+  // ✅ FIXED: Call backend comment endpoint
+  const addComment = async (postId: string) => {
     if (!isLoggedIn) {
       alert("Login required to comment");
       return;
     }
 
-    const text = commentInputs[index];
+    const text = commentInputs[postId];
     if (!text?.trim()) return;
 
-    setPosts((prev) => {
-      const copy = [...prev];
-      copy[index].comments.push(text);
-      return copy;
-    });
+    try {
+      const res = await fetch(`http://localhost:5000/posts/${postId}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
 
-    setCommentInputs((prev) => {
-      const copy = [...prev];
-      copy[index] = "";
-      return copy;
-    });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Comment failed");
+        return;
+      }
+
+      // Update local state with new comments
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId ? { ...post, comments: data.comments } : post
+        )
+      );
+
+      // Clear input
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+    } catch (err) {
+      console.error(err);
+      alert("Comment failed");
+    }
   };
 
   return (
@@ -254,8 +257,8 @@ function Home() {
       {/* TOP BAR */}
       <header className="topbar">
         <div className="left">
-          <button onClick={() => setMenuOpen(true)}>☰</button>
-          <button>🔍</button>
+          <button className="icon-btn" onClick={() => setMenuOpen(true)}>☰</button>
+          <button className="icon-btn">🔍</button>
         </div>
 
         <button className="logo" onClick={() => navigate("/")}>
@@ -265,11 +268,12 @@ function Home() {
         <div className="right">
           {!isLoggedIn ? (
             <>
-              <button onClick={() => navigate("/signup")}>Register</button>
-              <button onClick={() => navigate("/login")}>Sign in</button>
+              <button className="ghost" onClick={() => navigate("/signup")}>Register</button>
+              <button className="primary" onClick={() => navigate("/login")}>Sign in</button>
             </>
           ) : (
             <button
+              className="ghost"
               onClick={() => {
                 localStorage.removeItem("token");
                 window.location.reload();
@@ -292,18 +296,23 @@ function Home() {
 
       {/* SIDEBAR */}
       {menuOpen && (
-        <div className="sidebar">
-          <span className="close" onClick={() => setMenuOpen(false)}>
-            ✖
-          </span>
-          <ul>
-            <li>Home</li>
-            <li>Breaking News</li>
-            <li>Business</li>
-            <li>Culture</li>
-            <li>Music</li>
-          </ul>
-        </div>
+        <>
+          <div className="overlay" onClick={() => setMenuOpen(false)} />
+          <div className="sidebar">
+            <div className="sidebar-header">
+              <h3>Menu</h3>
+              <span onClick={() => setMenuOpen(false)}>✖</span>
+            </div>
+            <input className="sidebar-search" placeholder="Search..." />
+            <ul>
+              <li onClick={() => { setActiveCategory("all"); setMenuOpen(false); }}>Home</li>
+              <li onClick={() => { setActiveCategory("news"); setMenuOpen(false); }}>Breaking News</li>
+              <li onClick={() => { setActiveCategory("business"); setMenuOpen(false); }}>Business</li>
+              <li onClick={() => { setActiveCategory("culture"); setMenuOpen(false); }}>Culture</li>
+              <li onClick={() => { setActiveCategory("music"); setMenuOpen(false); }}>Music</li>
+            </ul>
+          </div>
+        </>
       )}
 
       {/* MAIN */}
@@ -328,43 +337,50 @@ function Home() {
 
         <h2 className="section">Latest updates</h2>
 
-        {filteredPosts.map((post) => {
-          const index = posts.indexOf(post);
-          return (
-            <div className="post" key={index}>
-              <h3>{post.title}</h3>
-              <p>{post.description}</p>
-              <small>{post.time}</small>
+        {filteredPosts.map((post) => (
+          <div className="post" key={post._id}>
+            <h3>{post.title}</h3>
+            <p>{post.description}</p>
+            <small>
+              By {post.author?.fullName || "Unknown"} • {new Date(post.createdAt).toLocaleString()}
+            </small>
 
-              <div className="actions">
-                <button onClick={() => likePost(index)}>👍 {post.likes}</button>
-              </div>
-
-              {activeCategory === "all" && (
-                <div className="comments">
-                  <input
-                    placeholder="Write a comment..."
-                    value={commentInputs[index] || ""}
-                    onChange={(e) => {
-                      const copy = [...commentInputs];
-                      copy[index] = e.target.value;
-                      setCommentInputs(copy);
-                    }}
-                  />
-                  <button onClick={() => addComment(index)}>Send</button>
-
-                  {post.comments.map((c, i) => (
-                    <div key={i}>💬 {c}</div>
-                  ))}
-                </div>
-              )}
+            <div className="actions">
+              <button onClick={() => likePost(post._id)}>
+                👍 {post.likes.length}
+              </button>
             </div>
-          );
-        })}
+
+            <div className="comments">
+              <input
+                placeholder="Write a comment..."
+                value={commentInputs[post._id] || ""}
+                onChange={(e) => {
+                  setCommentInputs((prev) => ({
+                    ...prev,
+                    [post._id]: e.target.value,
+                  }));
+                }}
+              />
+              <button onClick={() => addComment(post._id)}>Send</button>
+
+              {post.comments.map((c) => (
+                <div key={c._id} className="comment">
+                  <strong>{c.user?.fullName || "Anonymous"}:</strong> {c.text}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </main>
 
       <footer>
-        <small>© 2025 LocalLens · Hyperlocal Citizen Journalism</small>
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <strong>LocalLens</strong>
+            <small>© 2025 Hyperlocal Citizen Journalism</small>
+          </div>
+        </div>
       </footer>
     </div>
   );

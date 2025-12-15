@@ -5,13 +5,11 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
-
 dotenv.config();
 const app = express();
 app.use(cors({
   origin: "http://localhost:5173",
 }));
-
 
 // DB connection
 import { connectDB } from "./db.js";
@@ -64,7 +62,6 @@ app.post("/login", async (req, res) => {
   try {
     console.log("🔥 /login HIT", req.body);
 
-    // 1️⃣ Validate input
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -74,26 +71,22 @@ app.post("/login", async (req, res) => {
 
     const { email, password } = parsed.data;
 
-    // 2️⃣ Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // 3️⃣ Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // 4️⃣ Create JWT
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // 5️⃣ Send token
     return res.json({
       message: "Login successful",
       token,
@@ -120,6 +113,9 @@ app.post("/posts", authMiddleware, async (req, res) => {
       author: req.userId,
     });
 
+    // Populate author before sending response
+    await post.populate("author", "fullName");
+
     res.status(201).json(post);
   } catch (err) {
     console.error("CREATE POST ERROR:", err);
@@ -131,6 +127,7 @@ app.get("/posts", async (req, res) => {
   try {
     const posts = await Post.find()
       .populate("author", "fullName")
+      .populate("comments.user", "fullName")
       .sort({ createdAt: -1 });
 
     res.json(posts);
@@ -140,6 +137,7 @@ app.get("/posts", async (req, res) => {
   }
 });
 
+// ✅ FIXED LIKE ENDPOINT
 app.post("/posts/:id/like", authMiddleware, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -148,39 +146,73 @@ app.post("/posts/:id/like", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    if (!req.userId) {
-      return res.status(401).json({ error: "No userId in request" });
-    }
-
     const userId = req.userId.toString();
 
+    // Check if user already liked
     const alreadyLiked = post.likes.some(
       (id) => id.toString() === userId
     );
 
-    if (!alreadyLiked) {
+    if (alreadyLiked) {
+      // Unlike: remove user from likes array
+      post.likes = post.likes.filter((id) => id.toString() !== userId);
+    } else {
+      // Like: add user to likes array
       post.likes.push(userId);
     }
 
     await post.save();
 
-    console.log("✅ LIKES SAVED:", post.likes);
+    console.log("✅ LIKES UPDATED:", post.likes);
 
-    res.json({ likes: post.likes.length });
+    res.json({ 
+      likes: post.likes.length,
+      isLiked: !alreadyLiked 
+    });
   } catch (err) {
     console.error("❌ LIKE ERROR:", err);
     res.status(500).json({ error: "Like failed" });
   }
 });
 
+// ✅ NEW COMMENT ENDPOINT
+app.post("/posts/:id/comment", authMiddleware, async (req, res) => {
+  try {
+    const { text } = req.body;
 
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Comment text required" });
+    }
 
-// app.get(function(req, res){
-    
-// })
+    const post = await Post.findById(req.params.id);
 
-// app.put(function(req, res){
-    
-// })
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
 
-app.listen(5000);
+    // Add comment
+    post.comments.push({
+      user: req.userId,
+      text: text.trim(),
+    });
+
+    await post.save();
+
+    // Populate the user info for the new comment
+    await post.populate("comments.user", "fullName");
+
+    console.log("✅ COMMENT ADDED");
+
+    res.json({ 
+      comments: post.comments,
+      message: "Comment added" 
+    });
+  } catch (err) {
+    console.error("❌ COMMENT ERROR:", err);
+    res.status(500).json({ error: "Comment failed" });
+  }
+});
+
+app.listen(5000, () => {
+  console.log("✅ Server running on http://localhost:5000");
+});
