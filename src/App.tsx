@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 
@@ -24,6 +24,11 @@ export default function App() {
   // 👇 per-post comment input fix
   const [commentInputs, setCommentInputs] = useState<string[]>([]);
 
+  // Controlled inputs: `title`, `desc`, `linkInput`, and `commentInputs`
+  // are React state sources of truth. We bind `value` to state and
+  // update via `onChange` handlers using `e.currentTarget.value` so
+  // the user can type continuously without losing focus.
+
   /* LOAD / SAVE */
   useEffect(() => {
     const saved = localStorage.getItem("posts");
@@ -39,7 +44,14 @@ export default function App() {
   }, [posts]);
 
   /* ACTIONS */
-  const addPost = () => {
+  // Update headline (controlled input)
+  // NOTE: We'll use direct onChange handlers in JSX (e.target.value)
+  // to ensure simple, predictable behavior for controlled inputs.
+
+  // Create a new post. Use functional updates to avoid races with
+  // concurrent state changes and keep state reset logic local to this
+  // action (doesn't reset during normal renders).
+  const addPost = useCallback(() => {
     if (!title.trim() || !desc.trim()) return;
 
     const newPost: Post = {
@@ -51,36 +63,40 @@ export default function App() {
       attachments: attachments.length ? attachments : undefined,
     };
 
-    setPosts([newPost, ...posts]);
-    setCommentInputs(["", ...commentInputs]);
+    setPosts((prev) => [newPost, ...prev]);
+    setCommentInputs((prev) => ["", ...prev]);
     setTitle("");
     setDesc("");
     setAttachments([]);
-  };
+  }, [title, desc, attachments]);
 
-  const handleFiles = (files: FileList | null) => {
+  // Read files and append attachments one-by-one. Each attachment is
+  // added via functional `setAttachments` to avoid replacing state on
+  // each file read and triggering unexpected re-renders.
+  const handleFiles = useCallback((files: FileList | null) => {
     if (!files) return;
-    const arr: { type: "image" | "video" | "link"; src: string }[] = [];
     Array.from(files).forEach((f) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const result = ev.target?.result as string;
-        if (f.type.startsWith("image")) arr.push({ type: "image", src: result });
-        else if (f.type.startsWith("video")) arr.push({ type: "video", src: result });
-        else arr.push({ type: "link", src: result });
-        // update state once per file added
-        setAttachments((prev) => [...prev, ...arr]);
+        const item: { type: "image" | "video" | "link"; src: string } = f.type.startsWith("image")
+          ? { type: "image", src: result }
+          : f.type.startsWith("video")
+            ? { type: "video", src: result }
+            : { type: "link", src: result };
+        setAttachments((prev) => [...prev, item]);
       };
       reader.readAsDataURL(f);
     });
-  };
+  }, []);
 
-  const addLink = () => {
+  // Add a URL as an attachment and clear the inline link input.
+  const addLink = useCallback(() => {
     const url = linkInput.trim();
     if (!url) return;
     setAttachments((prev) => [...prev, { type: "link", src: url }]);
     setLinkInput("");
-  };
+  }, [linkInput]);
 
   const removeAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
@@ -92,19 +108,26 @@ export default function App() {
     setPosts(copy);
   };
 
-  const addComment = (index: number) => {
+  // Append a comment to a post. We read the comment text from
+  // `commentInputs[index]` and use functional updates to avoid
+  // stepping on concurrent state updates.
+  const addComment = useCallback((index: number) => {
     const text = commentInputs[index];
-    if (!text.trim()) return;
+    if (!text?.trim()) return;
 
-    const copy = [...posts];
-    copy[index].comments.push(text);
+    setPosts((prev) => {
+      const copy = [...prev];
+      const target = copy[index];
+      copy[index] = { ...target, comments: [...target.comments, text] };
+      return copy;
+    });
 
-    const newInputs = [...commentInputs];
-    newInputs[index] = "";
-
-    setPosts(copy);
-    setCommentInputs(newInputs);
-  };
+    setCommentInputs((prev) => {
+      const copy = [...prev];
+      copy[index] = "";
+      return copy;
+    });
+  }, [commentInputs]);
 
   /* ================= AUTH / HOME VIEWS (routes) ================= */
 
@@ -217,12 +240,12 @@ export default function App() {
             <input
               placeholder="Headline"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle((e.target as HTMLInputElement).value)}
             />
             <textarea
               placeholder="Describe what’s happening in your area..."
               value={desc}
-              onChange={(e) => setDesc(e.target.value)}
+              onChange={(e) => setDesc((e.target as HTMLTextAreaElement).value)}
             />
             <div className="attachments-row">
               <label className="file-btn">
@@ -231,7 +254,7 @@ export default function App() {
                   type="file"
                   accept="image/*,video/*"
                   multiple
-                  onChange={(e) => handleFiles(e.target.files)}
+                  onChange={(e) => handleFiles(e.currentTarget.files)}
                   hidden
                 />
               </label>
@@ -240,7 +263,7 @@ export default function App() {
                 <input
                   placeholder="Paste image/video URL or webpage link"
                   value={linkInput}
-                  onChange={(e) => setLinkInput(e.target.value)}
+                  onChange={(e) => setLinkInput((e.target as HTMLInputElement).value)}
                 />
                 <button type="button" onClick={addLink}>Add</button>
               </div>
@@ -263,7 +286,7 @@ export default function App() {
               </div>
             )}
 
-            <button onClick={addPost}>Publish</button>
+            <button onClick={addPost} disabled={!title.trim() || !desc.trim()}>Publish</button>
           </section>
 
           <h2 className="section">Latest updates</h2>
@@ -287,11 +310,11 @@ export default function App() {
                 <input
                   placeholder="Write a comment..."
                   value={commentInputs[index] || ""}
-                  onChange={(e) => {
-                    const copy = [...commentInputs];
-                    copy[index] = e.target.value;
-                    setCommentInputs(copy);
-                  }}
+                  onChange={(e) => setCommentInputs((prev) => {
+                    const copy = [...prev];
+                    copy[index] = (e.target as HTMLInputElement).value;
+                    return copy;
+                  })}
                 />
                 <button onClick={() => addComment(index)}>Send</button>
 
