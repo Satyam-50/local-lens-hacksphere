@@ -1,12 +1,76 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LocalLens</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Local Lens – HackSphere</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== TOPBAR ===== -->
+  <header class="topbar">
+    <div class="left">
+      <button class="icon-btn" id="menuBtn">☰</button>
+      <button class="logo">LocalLens</button>
+    </div>
+    <div class="right">
+      <button class="ghost">Login</button>
+      <button class="primary">Sign Up</button>
+    </div>
+  </header>
+
+  <!-- ===== NAV ===== -->
+  <nav class="nav">
+    <span>Home</span>
+    <span>Explore</span>
+    <span>Create</span>
+    <span>Profile</span>
+  </nav>
+
+  <!-- ===== MAIN ===== -->
+  <main class="container">
+
+    <!-- CREATE POST -->
+    <div class="card">
+      <h2>Create a Post</h2>
+      <input type="text" id="title" placeholder="Post title">
+      <textarea id="content" placeholder="Write something..."></textarea>
+      <button id="postBtn">Post</button>
+    </div>
+
+    <!-- POSTS -->
+    <h2 class="section">Recent Posts</h2>
+    <div id="posts"></div>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <strong>LocalLens</strong>
+        <small>HackSphere Project • Built with ❤️</small>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===== SIDEBAR ===== -->
+  <div class="overlay" id="overlay" hidden></div>
+  <aside class="sidebar" id="sidebar" hidden>
+    <div class="sidebar-header">
+      <h3>Menu</h3>
+      <span id="closeSidebar">✕</span>
+    </div>
+    <input class="sidebar-search" placeholder="Search...">
+    <ul>
+      <li>Dashboard</li>
+      <li>My Posts</li>
+      <li>Bookmarks</li>
+      <li>Settings</li>
+    </ul>
+  </aside>
+
+  <script src="script.js"></script>
+</body>
 </html>
